@@ -180,7 +180,7 @@ curl -X POST https://last-call-kyd5.onrender.com/telnyx/tools/createReservation 
   -H "Content-Type: application/json" \
   -d '{
     "listing_id": "your-listing-uuid",
-    "user_id": "your-user-uuid",
+    "phone_number": "+15551234567",
     "quantity": 1
   }'
 ```

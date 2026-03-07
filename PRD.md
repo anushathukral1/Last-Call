@@ -175,7 +175,7 @@ Sarah calls Last Call around 7 PM while commuting home. She quickly learns about
 │  │  - getUserProfile(phone_number)                          │  │
 │  │  - createUser(name, zip, dietary_prefs)                  │  │
 │  │  - getListings(zip, dietary_prefs)                       │  │
-│  │  - createReservation(listing_id, quantity, user_id)      │  │
+│  │  - createReservation(listing_id, phone_number, quantity) │  │
 │  └───────────────────────────────────────────────────────────┘  │
 └────────────────────────────┬────────────────────────────────────┘
                              │
@@ -398,9 +398,9 @@ DEPLOYMENT: Render/Railway (Public HTTPS endpoint)
       "type": "string",
       "format": "uuid"
     },
-    "user_id": {
+    "phone_number": {
       "type": "string",
-      "format": "uuid"
+      "description": "Phone number to look up user"
     },
     "quantity": {
       "type": "integer",
@@ -408,7 +408,7 @@ DEPLOYMENT: Render/Railway (Public HTTPS endpoint)
       "maximum": 10
     }
   },
-  "required": ["listing_id", "user_id", "quantity"]
+  "required": ["listing_id", "phone_number", "quantity"]
 }
 ```
 
@@ -444,19 +444,21 @@ DEPLOYMENT: Render/Railway (Public HTTPS endpoint)
 ```
 
 **Transaction Logic:**
-1. BEGIN TRANSACTION
-2. SELECT quantity_remaining FROM listings WHERE id = listing_id FOR UPDATE
-3. IF quantity_remaining < requested_quantity → ROLLBACK, throw error
-4. UPDATE listings SET quantity_remaining = quantity_remaining - quantity
-5. INSERT INTO reservations (...)
-6. COMMIT
-7. Generate pickup_code (phonetically distinct words + numbers)
+1. Look up user by phone_number
+2. If user not found → Return `USER_NOT_FOUND` error
+3. BEGIN TRANSACTION
+4. SELECT quantity_remaining FROM listings WHERE id = listing_id FOR UPDATE
+5. IF quantity_remaining < requested_quantity → ROLLBACK, throw error
+6. UPDATE listings SET quantity_remaining = quantity_remaining - quantity
+7. INSERT INTO reservations (...)
+8. COMMIT
+9. Generate pickup_code (phonetically distinct words + numbers)
 
 **Error Cases:**
+- Returns `USER_NOT_FOUND` if phone_number doesn't match any user
 - Throws `INSUFFICIENT_QUANTITY` if not enough inventory
 - Throws `LISTING_NOT_FOUND` if listing_id invalid
 - Throws `LISTING_EXPIRED` if pickup_deadline passed
-- Throws if user_id invalid
 
 ---
 
