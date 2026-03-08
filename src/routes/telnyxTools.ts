@@ -3,6 +3,7 @@ import { getUserProfile } from "../tools/getUserProfile.js";
 import { createUser } from "../tools/createUser.js";
 import { getListings } from "../tools/getListings.js";
 import { createReservation } from "../tools/createReservation.js";
+import { cancelReservation } from "../tools/cancelReservation.js";
 
 export const telnyxToolsRouter = Router();
 
@@ -78,5 +79,13 @@ telnyxToolsRouter.post("/telnyx/tools/createReservation", async (req, res) => {
   } catch (e) {
     logToolError(path, e);
     return res.status(500).json({ error: "createReservation failed" });
+  }
+});
+
+telnyxToolsRouter.post("/telnyx/tools/cancelReservation", async (req, res) => {
+  try {
+    return res.json(await cancelReservation(req.body));
+  } catch (e) {
+    return res.status(500).json({ error: "cancelReservation failed" });
   }
 });
