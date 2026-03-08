@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { supabase } from '../db/supabase.js';
+import { normalizePhoneNumber } from '../utils/normalizePhoneNumber.js';
 
 // Input validation schema
 const GetUserProfileSchema = z.object({
@@ -18,13 +19,15 @@ export interface UserProfileOutput {
 export async function getUserProfile(args: any): Promise<UserProfileOutput | null> {
   // Validate input
   const validated = GetUserProfileSchema.parse(args);
-  const { phone_number } = validated;
+  
+  // Normalize phone number to ensure consistent format
+  const normalizedPhoneNumber = normalizePhoneNumber(validated.phone_number);
 
-  // Query database
+  // Query database with normalized phone number
   const { data, error } = await supabase
     .from('users')
     .select('id, name, home_zip, dietary_restrictions, allergies')
-    .eq('phone_number', phone_number)
+    .eq('phone_number', normalizedPhoneNumber)
     .maybeSingle();
 
   if (error) {

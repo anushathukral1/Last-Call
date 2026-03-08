@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { supabase } from '../db/supabase.js';
+import { normalizePhoneNumber } from '../utils/normalizePhoneNumber.js';
 
 const CreateReservationSchema = z.object({
   listing_id: z.string().uuid('Invalid listing ID format'),
@@ -79,12 +80,15 @@ function mapReasonToError(reason: string, row?: ReserveListingRow): CreateReserv
 
 export async function createReservation(args: unknown): Promise<CreateReservationOutput> {
   const validated = CreateReservationSchema.parse(args);
-  const { listing_id, phone_number, quantity } = validated;
+  const { listing_id, quantity } = validated;
+  
+  // Normalize phone number to ensure consistent lookup
+  const normalizedPhoneNumber = normalizePhoneNumber(validated.phone_number);
 
   const { data: user, error: userError } = await supabase
     .from('users')
     .select('id')
-    .eq('phone_number', phone_number)
+    .eq('phone_number', normalizedPhoneNumber)
     .maybeSingle();
 
   if (userError) {
