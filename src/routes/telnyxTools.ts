@@ -83,9 +83,15 @@ telnyxToolsRouter.post("/telnyx/tools/createReservation", async (req, res) => {
 });
 
 telnyxToolsRouter.post("/telnyx/tools/cancelReservation", async (req, res) => {
+  const path = "/telnyx/tools/cancelReservation";
+  logToolStart(path, req.body);
+
   try {
-    return res.json(await cancelReservation(req.body));
+    const result = await cancelReservation(req.body);
+    logToolSuccess(path, result);
+    return res.json(result);
   } catch (e) {
+    logToolError(path, e);
     return res.status(500).json({ error: "cancelReservation failed" });
   }
 });
