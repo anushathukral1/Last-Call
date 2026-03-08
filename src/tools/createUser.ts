@@ -2,14 +2,17 @@ import { z } from 'zod';
 import { supabase } from '../db/supabase.js';
 import { normalizePhoneNumber } from '../utils/normalizePhoneNumber.js';
 
-// Input validation schema
-const CreateUserSchema = z.object({
-  phone_number: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid E.164 phone number format'),
+// Input validation schema (for raw input)
+const CreateUserInputSchema = z.object({
+  phone_number: z.string().min(1, 'Phone number is required'),
   name: z.string().min(1).max(100),
   home_zip: z.string().regex(/^\d{5}$/, 'Invalid ZIP code format (must be 5 digits)'),
   dietary_restrictions: z.array(z.string()).default([]),
   allergies: z.array(z.string()).default([]),
 });
+
+// Validation schema for normalized phone number
+const NormalizedPhoneSchema = z.string().regex(/^\+[1-9]\d{1,14}$/, 'Invalid E.164 phone number format');
 
 // Output schema
 export interface CreateUserOutput {
@@ -23,11 +26,13 @@ export interface CreateUserOutput {
 
 export async function createUser(args: any): Promise<CreateUserOutput> {
   // Validate input
-  const validated = CreateUserSchema.parse(args);
-  const { name, home_zip, dietary_restrictions, allergies } = validated;
+  const { phone_number, name, home_zip, dietary_restrictions, allergies } = CreateUserInputSchema.parse(args);
   
   // Normalize phone number to ensure consistent format
-  const normalizedPhoneNumber = normalizePhoneNumber(validated.phone_number);
+  const normalizedPhoneNumber = normalizePhoneNumber(phone_number);
+  
+  // Validate the normalized phone number
+  NormalizedPhoneSchema.parse(normalizedPhoneNumber);
 
   // Insert user with normalized phone number
   const { data, error } = await supabase

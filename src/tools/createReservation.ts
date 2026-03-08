@@ -2,13 +2,17 @@ import { z } from 'zod';
 import { supabase } from '../db/supabase.js';
 import { normalizePhoneNumber } from '../utils/normalizePhoneNumber.js';
 
-const CreateReservationSchema = z.object({
+// Input validation schema (for raw input)
+const CreateReservationInputSchema = z.object({
   listing_id: z.string().uuid('Invalid listing ID format'),
-  phone_number: z.string().min(7, 'Invalid phone number'),
+  phone_number: z.string().min(1, 'Phone number is required'),
   quantity: z.coerce.number().int().min(1, 'Minimum 1 item').max(10, 'Maximum 10 items per reservation'),
 });
 
-export type CreateReservationInput = z.infer<typeof CreateReservationSchema>;
+// Validation schema for normalized phone number
+const NormalizedPhoneSchema = z.string().regex(/^\+[1-9]\d{1,14}$/, 'Invalid E.164 phone number format');
+
+export type CreateReservationInput = z.infer<typeof CreateReservationInputSchema>;
 
 type ReserveListingRow = {
   success: boolean;
@@ -79,11 +83,13 @@ function mapReasonToError(reason: string, row?: ReserveListingRow): CreateReserv
 }
 
 export async function createReservation(args: unknown): Promise<CreateReservationOutput> {
-  const validated = CreateReservationSchema.parse(args);
-  const { listing_id, quantity } = validated;
+  const { listing_id, phone_number, quantity } = CreateReservationInputSchema.parse(args);
   
   // Normalize phone number to ensure consistent lookup
-  const normalizedPhoneNumber = normalizePhoneNumber(validated.phone_number);
+  const normalizedPhoneNumber = normalizePhoneNumber(phone_number);
+  
+  // Validate the normalized phone number
+  NormalizedPhoneSchema.parse(normalizedPhoneNumber);
 
   const { data: user, error: userError } = await supabase
     .from('users')
