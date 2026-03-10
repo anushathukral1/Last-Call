@@ -5,6 +5,7 @@ A voice-first app that helps you discover and reserve discounted surplus food fr
 ## 📞 Try It Now
 
 **Call: +1 (604) 742-9190**
+**Or Visit: [Last Call](https://last-call-kyd5.onrender.com)**
 
 The AI assistant will:
 1. Recognize if you're a returning caller or new user
