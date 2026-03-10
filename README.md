@@ -1,47 +1,131 @@
-# Last Call - Backend Implementation
+# Last Call 🍽️📞
 
-Voice-first surplus food discovery system built with Telnyx AI Assistant, Express, and Supabase.
+A voice-first app that helps you discover and reserve discounted surplus food from local restaurants before they close. Just call the AI assistant, hear available meals near you, and get an instant pickup code — no app required.
 
-## 📋 Backend Review Status
+## 📞 Try It Now
 
-✅ **Infrastructure:** Supabase connection, Express server, routing - all working  
-✅ **Fixed Implementations:** All 4 MCP tools updated with validation  
-⚠️ **Database Setup Required:** Schema and seed data need to be applied  
-⚠️ **Testing Pending:** Full end-to-end testing after database setup  
+**Call: +1 (604) 742-9190**
 
-See **[REVIEW_FINDINGS.md](./REVIEW_FINDINGS.md)** for detailed review results and fixes applied.
+The AI assistant will:
+1. Recognize if you're a returning caller or new user
+2. Ask for your location and dietary preferences (if new)
+3. Read out nearby discounted meal options
+4. Let you reserve items and get an instant pickup code
 
----
+## 🚀 What This Project Does
 
-## 🚀 Quick Start
+Last Call connects hungry people with restaurants that have surplus food at the end of the day. Instead of food going to waste, users can call a phone number and talk to an AI assistant powered by [Telnyx](https://telnyx.com/) to:
+
+- **Discover** available discounted meals near their location
+- **Filter** by dietary preferences and allergies
+- **Reserve** items instantly with atomic inventory management
+- **Pickup** food before closing using a unique code
+
+All interactions happen over voice — no mobile app, no website login, just a simple phone call.
+
+## 🏗️ Backend Architecture
+
+### Tech Stack
+- **Express.js** - HTTP server handling webhook endpoints
+- **TypeScript** - Type-safe backend code
+- **Supabase (PostgreSQL)** - Database for users, restaurants, listings, and reservations
+- **Telnyx AI Assistant** - Voice interface with function calling
+- **Zod** - Runtime validation for all API inputs
+
+### Architecture Overview
+
+```
+┌─────────────┐
+│   Caller    │
+│  (Phone)    │
+└──────┬──────┘
+       │ Dials +1 (604) 742-9190
+       ▼
+┌──────────────────────┐
+│  Telnyx AI Assistant │ ◄── Natural language voice interface
+│  (Function Calling)  │
+└──────┬───────────────┘
+       │ HTTP Webhooks
+       ▼
+┌──────────────────────┐
+│   Express Server     │
+│  (Backend API)       │
+├──────────────────────┤
+│ /telnyx/dynamic-variables  ← Call initialization (identify caller)
+│ /telnyx/tools/getUserProfile  ← Fetch user profile
+│ /telnyx/tools/createUser      ← Onboard new user
+│ /telnyx/tools/getListings     ← Search available food
+│ /telnyx/tools/createReservation ← Reserve items atomically
+└──────┬───────────────┘
+       │ Supabase Client
+       ▼
+┌──────────────────────┐
+│  PostgreSQL (Supabase)│
+├──────────────────────┤
+│ • users              │ ← Phone, name, zip, dietary prefs
+│ • restaurants        │ ← Name, address, zip code
+│ • listings           │ ← Food items with inventory
+│ • reservations       │ ← Confirmed orders with pickup codes
+└──────────────────────┘
+```
+
+### Key Features
+
+**1. Dynamic Variables Endpoint** (`/telnyx/dynamic-variables`)
+- Receives call initiation webhook from Telnyx
+- Looks up caller by phone number in the database
+- Returns user context (name, home zip) or flags as new user
+- Allows AI assistant to personalize the conversation
+
+**2. Function Calling Tools** (4 endpoints under `/telnyx/tools/`)
+- **getUserProfile**: Fetch user profile by phone number
+- **createUser**: Onboard new user with dietary preferences
+- **getListings**: Query available food filtered by location, diet, allergies
+- **createReservation**: Atomically reserve items with row-level locking to prevent overselling
+
+**3. Atomic Reservation System**
+- Uses PostgreSQL stored procedure with `SELECT FOR UPDATE`
+- Prevents race conditions when multiple people try to reserve the same item
+- Generates unique pickup codes using NATO alphabet (e.g., "ALPHA-5-2-7")
+- Decrements inventory and locks rows during transaction
+
+**4. Dietary Filtering**
+- Excludes items containing user's allergens
+- Includes items matching dietary restrictions (vegetarian, vegan, gluten-free, etc.)
+- Neutral items without tags are always included
+
+## 🛠️ Setup Instructions
+
+### Prerequisites
+- Node.js 18+ and npm
+- Supabase account (free tier works)
+- Telnyx account with AI Assistant configured (optional for local testing)
 
 ### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Setup Environment Variables
-Copy `.env.example` to `.env` and fill in your Supabase credentials:
+### 2. Configure Environment Variables
 ```bash
 cp .env.example .env
 ```
 
 Edit `.env`:
-```
+```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 PORT=3000
 ```
 
 ### 3. Setup Database
-Execute `schema.sql` in your Supabase SQL Editor:
-- Creates all 4 tables (users, restaurants, listings, reservations)
-- Creates indexes for performance
+Execute the `schema.sql` file in your Supabase SQL Editor:
+- Creates all 4 tables with indexes and constraints
 - Creates `reserve_listing()` stored procedure for atomic reservations
-- Seeds 5 restaurants and 10 listings
-- Seeds 1 test user
+- Seeds 5 restaurants and 10 food listings
+- Seeds 1 test user (+15550100)
 
-**Important:** The seed data sets listing deadlines to 3 hours from execution time.
+**Note:** Seed data sets listing deadlines to 3 hours from execution time.
 
 ### 4. Build and Run
 ```bash
@@ -49,343 +133,139 @@ npm run build
 npm start
 ```
 
-Server will start on `http://localhost:3000`
+Server runs on `http://localhost:3000`
 
-### 5. Test Endpoints
+### 5. Test the API
 ```bash
 # Health check
 curl http://localhost:3000/health
 
-# Get user profile
-curl -X POST http://localhost:3000/mcp/tools \
+# Get user profile (test user)
+curl -X POST http://localhost:3000/telnyx/tools/getUserProfile \
   -H "Content-Type: application/json" \
-  -d '{"tool":"getUserProfile","args":{"phone_number":"+15550100"}}'
+  -d '{"phone_number":"+15550100"}'
 
-# Get listings in 90210
-curl -X POST http://localhost:3000/mcp/tools \
+# Get listings in Beverly Hills (90210)
+curl -X POST http://localhost:3000/telnyx/tools/getListings \
   -H "Content-Type: application/json" \
-  -d '{"tool":"getListings","args":{"zip_code":"90210"}}'
+  -d '{"zip_code":"90210","limit":5}'
 ```
 
----
-
-## 📁 Project Structure
+## 📂 Project Structure
 
 ```
 last-call/
 ├── src/
+│   ├── index.ts                  # Express server entry point
 │   ├── db/
-│   │   └── supabase.ts          # Supabase client configuration
+│   │   └── supabase.ts           # Supabase client config
 │   ├── routes/
-│   │   ├── health.ts            # Health check endpoint
-│   │   ├── dynamicVariables.ts  # Telnyx dynamic variables webhook
-│   │   └── mcp.ts               # MCP tool router
+│   │   ├── health.ts             # Health check endpoint
+│   │   ├── dynamicVariables.ts   # Telnyx call init webhook
+│   │   ├── telnyxTools.ts        # Tool endpoints for AI assistant
+│   │   └── mcp.ts                # MCP-compatible tool router
 │   ├── tools/
-│   │   ├── getUserProfile.ts    # Fetch user by phone number
-│   │   ├── createUser.ts        # Onboard new user
-│   │   ├── getListings.ts       # Search available food listings
-│   │   └── createReservation.ts # Atomic reservation with row locking
-│   └── index.ts                 # Express server entry point
-├── schema.sql                   # Complete database setup
-├── PRD.md                       # Product requirements document
-├── REVIEW_FINDINGS.md           # Backend review results
-└── package.json
+│   │   ├── getUserProfile.ts     # Fetch user by phone
+│   │   ├── createUser.ts         # Onboard new user
+│   │   ├── getListings.ts        # Search food listings
+│   │   └── createReservation.ts  # Reserve items atomically
+│   └── utils/
+│       ├── normalizePhoneNumber.ts  # E.164 phone validation
+│       └── normalizePickupCode.ts   # Unique code generation
+├── public/
+│   ├── index.html                # Landing page
+│   └── styles.css                # Landing page styles
+├── schema.sql                    # Complete database setup
+├── .env.example                  # Environment template
+└── README.md                     # This file
 ```
 
----
+## 🔧 API Endpoints
 
-## 🛠️ MCP Tools API
+### Telnyx Webhooks
 
-### Endpoint
-`POST /mcp/tools`
+**POST /telnyx/dynamic-variables**
+- Receives call initialization from Telnyx
+- Returns caller context for personalization
 
-### Request Format
+**POST /telnyx/tools/getUserProfile**
+```json
+{ "phone_number": "+15551234567" }
+```
+Returns user profile or `null` if new caller.
+
+**POST /telnyx/tools/createUser**
 ```json
 {
-  "tool": "toolName",
-  "args": { /* tool-specific arguments */ }
-}
-```
-
----
-
-## 🔧 Tool 1: getUserProfile
-
-Retrieves user profile by phone number (for returning callers).
-
-**Request:**
-```json
-{
-  "tool": "getUserProfile",
-  "args": {
-    "phone_number": "+15550100"
-  }
-}
-```
-
-**Response (existing user):**
-```json
-{
-  "user_id": "uuid",
-  "name": "Test User",
-  "home_zip": "90210",
-  "dietary_restrictions": ["vegetarian"],
-  "allergies": []
-}
-```
-
-**Response (new user):**
-```json
-null
-```
-
----
-
-## 🔧 Tool 2: createUser
-
-Creates new user profile (onboarding flow).
-
-**Request:**
-```json
-{
-  "tool": "createUser",
-  "args": {
-    "phone_number": "+15551234",
-    "name": "Sarah",
-    "home_zip": "90210",
-    "dietary_restrictions": ["vegetarian"],
-    "allergies": ["peanuts"]
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "user_id": "uuid",
+  "phone_number": "+15551234567",
   "name": "Sarah",
   "home_zip": "90210",
   "dietary_restrictions": ["vegetarian"],
+  "allergies": ["peanuts"]
+}
+```
+Creates new user profile.
+
+**POST /telnyx/tools/getListings**
+```json
+{
+  "zip_code": "90210",
+  "dietary_restrictions": ["vegetarian"],
   "allergies": ["peanuts"],
-  "success": true
+  "limit": 5
 }
 ```
+Returns filtered food listings sorted by price.
 
-**Errors:**
-- `DUPLICATE_KEY`: Phone number already exists
-
----
-
-## 🔧 Tool 3: getListings
-
-Fetches available food listings filtered by location and dietary preferences.
-
-**Request:**
+**POST /telnyx/tools/createReservation**
 ```json
 {
-  "tool": "getListings",
-  "args": {
-    "zip_code": "90210",
-    "dietary_restrictions": ["vegetarian"],
-    "allergies": ["peanuts"],
-    "limit": 3
-  }
+  "listing_id": "uuid",
+  "user_id": "uuid",
+  "quantity": 2
 }
 ```
+Atomically reserves items and returns pickup code.
 
-**Response:**
-```json
-{
-  "listings": [
-    {
-      "listing_id": "uuid",
-      "restaurant_name": "Green Bowl",
-      "restaurant_address": "456 Oak Ave, Beverly Hills, CA",
-      "item_name": "Quinoa Power Bowl",
-      "description": "Quinoa with roasted vegetables and tahini",
-      "original_price": 14.00,
-      "discounted_price": 6.00,
-      "quantity_available": 8,
-      "pickup_deadline": "2026-03-04T22:00:00Z",
-      "dietary_tags": ["vegan", "gluten-free"]
-    }
-  ],
-  "count": 1
-}
-```
-
-**Filtering Logic:**
-- Excludes listings with allergens matching user allergies
-- Includes listings matching dietary restrictions OR neutral items
-- Sorts by price (cheapest first)
-- Only active listings (quantity > 0, not expired)
-
----
-
-## 🔧 Tool 4: createReservation
-
-Atomically reserves items (prevents overselling with row-level locking).
-
-**Request:**
-```json
-{
-  "tool": "createReservation",
-  "args": {
-    "listing_id": "uuid",
-    "user_id": "uuid",
-    "quantity": 2
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "reservation_id": "uuid",
-  "pickup_code": "ALPHA-5-2-7",
-  "restaurant_name": "Green Bowl",
-  "restaurant_address": "456 Oak Ave, Beverly Hills, CA",
-  "item_name": "Quinoa Power Bowl",
-  "quantity": 2,
-  "total_price": 12.00,
-  "pickup_deadline": "2026-03-04T22:00:00Z",
-  "success": true
-}
-```
-
-**Errors:**
-- `LISTING_NOT_FOUND`: Invalid listing ID
-- `LISTING_EXPIRED`: Pickup deadline passed
-- `INSUFFICIENT_QUANTITY`: Not enough items available
-- `INVALID_QUANTITY`: Quantity out of range (1-10)
-
-**Atomic Guarantees:**
-- Uses PostgreSQL stored procedure with `SELECT FOR UPDATE`
-- Prevents race conditions between concurrent reservations
-- Generates unique pickup codes (NATO alphabet + numbers)
-
----
-
-## 🗄️ Database Schema
-
-### Tables
-- **users**: Customer profiles with dietary preferences
-- **restaurants**: Restaurant locations by ZIP code
-- **listings**: Available food items with inventory
-- **reservations**: Confirmed reservations with pickup codes
-
-### Key Features
-- UUIDs for all primary keys
-- Indexes on phone_number, zip_code, pickup_deadline
-- Constraints: valid_prices, valid_quantity, reservation status enum
-- Stored procedure: `reserve_listing()` for atomic reservations
-
-See `schema.sql` for complete DDL.
-
----
-
-## ✅ What Was Fixed
-
-Based on the backend review, the following improvements were made:
-
-### 1. Added Input Validation (All Tools)
-- Zod schemas for all 4 tools
-- Phone number format validation (E.164)
-- ZIP code validation (5 digits)
-- Quantity limits (1-10)
-
-### 2. Completed getUserProfile
-- Maps `id` → `user_id` in response
-- Returns proper field structure per PRD
-- Handles null case for new users
-
-### 3. Completed createUser
-- Accepts `dietary_restrictions` and `allergies`
-- Returns `user_id` and `success` boolean
-- Handles duplicate phone number errors
-
-### 4. Completed getListings
-- Implements dietary filtering logic
-- Returns all required fields (description, original_price, dietary_tags)
-- Sorts by discounted_price ascending
-- Returns count field
-- Handles limit parameter
-
-### 5. Fixed createReservation
-- Uses stored procedure for atomic operations
-- Parses specific error types
-- Returns complete reservation details
-
-### 6. Added Database Schema
-- Complete SQL migration script
-- All constraints and indexes
-- Stored procedure with row-level locking
-- Seed data for testing
-
----
-
-## 🧪 Testing Checklist
-
-Before Telnyx integration:
-
-- [ ] Execute `schema.sql` in Supabase
-- [ ] Verify 5 restaurants seeded
-- [ ] Verify 10 listings seeded with future deadlines
-- [ ] Test getUserProfile with existing phone
-- [ ] Test getUserProfile with new phone (returns null)
-- [ ] Test createUser with new phone
-- [ ] Test createUser duplicate phone (error)
-- [ ] Test getListings in 90210 (should return results)
-- [ ] Test getListings in 10001 (should return empty)
-- [ ] Test getListings with dietary filters
-- [ ] Test createReservation with valid listing
-- [ ] Test createReservation with insufficient quantity
-- [ ] Test concurrent reservations (race condition)
-
----
-
-## 🚨 Known Issues / Next Steps
-
-1. **Database not seeded yet** - Execute `schema.sql` first
-2. **Telnyx integration pending** - Backend ready for voice assistant
-3. **No automated tests** - Add unit/integration tests
-4. **No logging middleware** - Consider adding structured logging
-5. **Environment validation** - Add startup checks for required env vars
-
----
-
-## 📚 Related Documents
-
-- **PRD.md**: Complete product requirements and architecture
-- **REVIEW_FINDINGS.md**: Detailed backend review results
-- **schema.sql**: Database setup script
-
----
-
-## 🤝 Development Workflow
+## 🧪 Development
 
 ```bash
-# Development mode (watch for changes)
+# Watch mode (auto-rebuild on changes)
 npm run dev
 
 # Production build
 npm run build
+
+# Start server
 npm start
 
-# Check for TypeScript errors
+# Type checking
 npx tsc --noEmit
 ```
 
+## 🎯 Use Cases
+
+- **Consumers**: Save money on quality meals while reducing food waste
+- **Restaurants**: Recover revenue from surplus inventory instead of throwing it away
+- **Environment**: Less food waste = lower carbon footprint
+- **Accessibility**: Voice interface works for everyone, no smartphone required
+
+## 📝 Notes
+
+- The phone number (+1 604-742-9190) requires Telnyx configuration to work
+- On Telnyx trial accounts, you need to verify caller numbers first
+- Database seed data creates listings with 3-hour pickup windows
+- Atomic reservations prevent overselling during high traffic
+- All phone numbers must be in E.164 format (+1234567890)
+
+## 🔮 Future Enhancements
+
+- Real-time notifications when nearby restaurants post new listings
+- SMS confirmation with pickup details
+- Restaurant dashboard for managing listings
+- Multi-language support
+- Integration with Google Maps for directions
+
 ---
 
-## 📞 Support
-
-For issues or questions, refer to:
-1. REVIEW_FINDINGS.md for known issues
-2. PRD.md for architecture decisions
-3. schema.sql for database structure
-
----
-
-**Status:** Backend infrastructure complete and tested ✅  
-**Next:** Execute database schema → Test all endpoints → Integrate Telnyx
+**Built with** Express, TypeScript, Supabase, and Telnyx AI Assistant 💚
